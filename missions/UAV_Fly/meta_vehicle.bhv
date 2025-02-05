@@ -10,31 +10,35 @@ initialize   AVOID  = true
 initialize BHV_MODE = INACTIVE
 
 
+// for testing with boat AvCol
+initialize DEPLOY = false
+initialize RETURN_TO_LAUNCH = false
+
 // set BHV_MODE = INACTIVE {
 //   AUTOPILOT_MODE = HELM_INACTIVE
 // }
 
-set BHV_MODE = ACTIVE {
-  AUTOPILOT_MODE != HELM_INACTIVE  
-  AUTOPILOT_MODE != HELM_INACTIVE_LOITERING
-  AUTOPILOT_MODE != HELM_PARKED
-} INACTIVE
+// set BHV_MODE = ACTIVE {
+//   AUTOPILOT_MODE != HELM_INACTIVE  
+//   AUTOPILOT_MODE != HELM_INACTIVE_LOITERING
+//   AUTOPILOT_MODE != HELM_PARKED
+// } INACTIVE
 
 
-set BHV_MODE = TOWAYPT {
-  BHV_MODE = ACTIVE
-  AUTOPILOT_MODE = HELM_TOWAYPT
-} 
+// set BHV_MODE = TOWAYPT {
+//   BHV_MODE = ACTIVE
+//   AUTOPILOT_MODE = HELM_TOWAYPT
+// } 
 
-set BHV_MODE = RETURN {
-  BHV_MODE = ACTIVE
-  AUTOPILOT_MODE = HELM_RETURNING
-}
+// set BHV_MODE = RETURN {
+//   BHV_MODE = ACTIVE
+//   AUTOPILOT_MODE = HELM_RETURNING
+// }
 
-set BHV_MODE = SURVEY {
-  BHV_MODE = ACTIVE
-  AUTOPILOT_MODE = HELM_SURVEYING
-} 
+// set BHV_MODE = SURVEY {
+//   BHV_MODE = ACTIVE
+//   AUTOPILOT_MODE = HELM_SURVEYING
+// } 
 
 
 // Set MAINTAIN_DEPTH = true {
@@ -68,7 +72,7 @@ set BHV_MODE = SURVEY {
 // } 
 
 //----------------------------------------------
-Behavior = BHV_Waypoint
+// Behavior = BHV_Waypoint
 {
   name       = waypt_survey
   pwt        = 100
@@ -104,7 +108,8 @@ Behavior = BHV_Waypoint
 
 //----------------------------------------------
 
-Behavior = BHV_ConstantAltitude{
+// Behavior = BHV_ConstantAltitude
+{
   name       = const_altitude
   pwt        = 100
   updates    = CONST_ALTITUDE_UPDATE
@@ -130,9 +135,11 @@ Behavior = BHV_Waypoint
   name       = waypt_next
   pwt        = 100
   updates    = TOWAYPT_UPDATE
-  condition  = AUTOPILOT_MODE==HELM_TOWAYPT
+  // condition  = AUTOPILOT_MODE==HELM_TOWAYPT
+  // endflag    = LOITER = true
   perpetual  = true
-  endflag    = LOITER = true
+  condition  = DEPLOY=true // for testing with boat AvCol
+  endflag    = DEPLOY=false
 
            speed = $(SPEED)
   capture_radius = 20 
@@ -151,9 +158,11 @@ Behavior = BHV_Waypoint
   name       = waypt_return
   pwt        = 100
   updates    = RETURN_UPDATE
-  condition  = AUTOPILOT_MODE==HELM_RETURNING
+  // condition  = AUTOPILOT_MODE==HELM_RETURNING 
+  // endflag    = LOITER = true
+  condition  = RETURN_TO_LAUNCH=true // for testing with boat AvCol
+  endflag    = RETURN_TO_LAUNCH=false
   perpetual  = true
-  endflag    = LOITER = true
 
 
            speed = $(SPEED)
@@ -174,7 +183,7 @@ Behavior = BHV_AvoidCollision
   name       = avdcol_
   pwt        = 350
   condition  = AVOID = true 
-  condition  = BHV_MODE==ACTIVE
+  // condition  = BHV_MODE==ACTIVE
   updates    = CONTACT_INFO
   endflag    = CONTACT_RESOLVED = $[CONTACT]
   templating = spawn
@@ -190,7 +199,7 @@ Behavior = BHV_AvoidCollision
         // headon_only = true
         // can_disable = true  
         
-  bearing_lines = true
+  // bearing_lines = true
   bearing_line_config = white:0, green:0.65, yellow:0.8, red:1.0
 //	velocity_filter = min_spd=0.2, max_spd=1.0, pct=40
 	
@@ -198,7 +207,7 @@ Behavior = BHV_AvoidCollision
   // ------------------------------------
   // Distances are 2x real life in MOOS
         use_refinery = true 
-      pwt_inner_dist = 100
+      pwt_inner_dist = 50
       pwt_outer_dist = 160  // Range to contact outside which the behavior has zero priority weight (alert_range). Default is 200
       completed_dist = 190  // cpa_range
            pwt_grade = quasi // Deafult is quasi

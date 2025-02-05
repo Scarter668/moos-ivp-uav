@@ -249,7 +249,8 @@ nsplug meta_vehicle.moos targ_$VNAME.moos $NSFLAGS WARP=$TIME_WARP \
        COLOR=$COLOR                 XMODE=$XMODE                          \
        LatOrigin=$LAT_ORIGIN        LonOrigin=$LON_ORIGIN     \
        AP_IP=$ARDUPILOT_IP          AP_PORT=$ARDUPILOT_PORT   \
-       AP_PROTOCOL=$ARDUPILOT_PROTOCOL                       
+       AP_PROTOCOL=$ARDUPILOT_PROTOCOL               \
+       START_POS=$START_POS # for testing boat AvCol       
 
 nsplug meta_vehicle.bhv targ_$VNAME.bhv $NSFLAGS VNAME=$VNAME \
        SPEED=$SPEED                  START_POS=$START_POS     \

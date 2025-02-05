@@ -155,7 +155,7 @@ for ((i = 0; i < $NUM_VEHICLES; i++)); do
 
         ARDUPILOT_PORT=$(($ARDUPILOT_PORT + $i*10))
     
-        START_POS="$x,$y"
+        START_POS="x=$x,y=$y"
 
         MOOS_PORT=$(($i+1 + $DEFAULT_PORT_DB))
         PSHARE_PORT=$(($i+1 + $DEFAULT_PORT_PSHARE))
