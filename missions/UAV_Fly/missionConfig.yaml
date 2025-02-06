@@ -21,8 +21,10 @@ moos:
     DB: 9000
     PSHARE: 9200
   datum:
-    lat: 63.3975168
-    lon: 10.1435321
+    # lat: 63.3975168
+    # lon: 10.1435321
+    lat: -35.3632621
+    lon: 149.1652374
 
 drones:
   - name: "skywalker"

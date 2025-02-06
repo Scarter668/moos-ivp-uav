@@ -14,7 +14,7 @@ Processconfig = ANTLER
   Run = pNodeReporter      @ NewConsole = false
   Run = pDeadManPost       @ NewConsole = false
 
-  Run = pHelmIvP           @ NewConsole = true, XConfig=HOLDSettings
+  Run = pHelmIvP           @ NewConsole = false//, XConfig=HOLDSettings
   Run = pContactMgrV20     @ NewConsole = false
   Run = pShare             @ NewConsole = false
   Run = pHostInfo          @ NewConsole = false

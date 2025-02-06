@@ -156,9 +156,9 @@ ProcessConfig = pMarineViewer
 
   trails_point_size    = 5.0
 
-  //tiff_file            = MIT_SP.tif
-  tiff_file            = NTNU_UAV_Airport_gsat.tif
-  tiff_file            = NTNU_UAV_Airport_gmaps.tif
+  tiff_file            = MIT_SP.tif
+  // tiff_file            = NTNU_UAV_Airport_gsat.tif
+  // tiff_file            = NTNU_UAV_Airport_gmaps.tif
   set_pan_x            = -1922 // To get over the airport
   set_pan_y            = -1369 // To get over the airport
   zoom                 = 2
@@ -243,7 +243,8 @@ ProcessConfig = pMarineViewer
   
   left_context[register_wypt_all] =  VIEW_MARKER = "type=gateway,x=$[XPOS],y=$[YPOS],scale=10,label=next_wpt_all,color=blue,width=10"
   // left_context[register_wypt_all] =  NEXT_WAYPOINT = "lat=$[LAT],lon=$[LON],x=$[XPOS],y=$[YPOS],vname=all"
-  left_context[register_wypt_all] =  TOWAYPT_UPDATE_ALL = "points=$[XPOS],$[YPOS]" // for testing with boat AvCol
+  left_context[register_wypt_all] =  TOWAYPT_UPDATE_ALL = "points=$[XPOS],$[YPOS]"   // for testing with boat AvCol
+  left_context[register_wypt_all] =  MOOS_MANUAL_OVERRIDE_ALL=false   // for testing with boat AvCol
   
   left_context[register_wypt_active_vehicle] =  VIEW_MARKER = "type=gateway,x=$[XPOS],y=$[YPOS],scale=10,label=next_wpt_$[VNAME],color=gray,width=10"
   left_context[register_wypt_active_vehicle] =  NEXT_WAYPOINT = "lat=$[LAT],lon=$[LON],x=$[XPOS],y=$[YPOS],vname=$[VNAME]"

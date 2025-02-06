@@ -14,118 +14,13 @@ initialize BHV_MODE = INACTIVE
 initialize DEPLOY = false
 initialize RETURN_TO_LAUNCH = false
 
-// set BHV_MODE = INACTIVE {
-//   AUTOPILOT_MODE = HELM_INACTIVE
-// }
-
-// set BHV_MODE = ACTIVE {
-//   AUTOPILOT_MODE != HELM_INACTIVE  
-//   AUTOPILOT_MODE != HELM_INACTIVE_LOITERING
-//   AUTOPILOT_MODE != HELM_PARKED
-// } INACTIVE
-
-
-// set BHV_MODE = TOWAYPT {
-//   BHV_MODE = ACTIVE
-//   AUTOPILOT_MODE = HELM_TOWAYPT
-// } 
-
-// set BHV_MODE = RETURN {
-//   BHV_MODE = ACTIVE
-//   AUTOPILOT_MODE = HELM_RETURNING
-// }
-
-// set BHV_MODE = SURVEY {
-//   BHV_MODE = ACTIVE
-//   AUTOPILOT_MODE = HELM_SURVEYING
-// } 
-
-
-// Set MAINTAIN_DEPTH = true {
-//   AUTOPILOT_MODE = HELM_SURVEYING  
-// }
-// set MAINTAIN_DEPTH = true {
-//   AUTOPILOT_MODE = HELM_RETURNING
-// }
-// set MAINTAIN_DEPTH = true {
-//   AUTOPILOT_MODE = HELM_TOWAYPT
-// } false
-
-// set AUTOPILOT_MODE = ACTIVE {
-//   DEPLOY = true
-// } INACTIVE
-
-// set AUTOPILOT_MODE = STATION-KEEPING {
-//   AUTOPILOT_MODE = ACTIVE
-//   STATION_KEEP = true
-// }                       
-
-// set AUTOPILOT_MODE = SURVEYING {
-//   AUTOPILOT_MODE = ACTIVE
-//   RETURN != true
-//   SURVEY = true
-// } 
-
-// set AUTOPILOT_MODE = RETURNING {
-//   AUTOPILOT_MODE = ACTIVE
-//   RETURN = true
-// } 
-
-//----------------------------------------------
-// Behavior = BHV_Waypoint
-{
-  name       = waypt_survey
-  pwt        = 100
-  updates    = SURVEY_UPDATE
-  condition  = AUTOPILOT_MODE==HELM_SURVEYING
-  perpetual  = true
-  endflag    = RETURN = true
-
-          repeat = 1
-           speed = $(SPEED)
- 
- #ifdef XMODE SIM
-  capture_radius = 100
-     slip_radius = 150
-            lead = 30
-     lead_damper = 20
-#else
-  capture_radius = 100
-     slip_radius = 200
-            lead = 30
-     lead_damper = 25
-#endif
-
-          // points = 205,-125:320,-205:140,-300:250,-460:25,-500
-          points = -390,10:55,381:333,35:-100,-290
-
-
-     visual_hints = vertex_size  = 4             // default
-     visual_hints = vertex_color = $(COLOR)   // default
-}
-
 
 
 //----------------------------------------------
 
-// Behavior = BHV_ConstantAltitude
-{
-  name       = const_altitude
-  pwt        = 100
-  updates    = CONST_ALTITUDE_UPDATE
-
-  // condition  = (AUTOPILOT_MODE=HELM_SURVEYING) or (AUTOPILOT_MODE=HELM_RETURNING) or (AUTOPILOT_MODE=HELM_TOWAYPT)
-  condition  = BHV_MODE==ACTIVE
-
-  perpetual  = true
 
 
-
-  altitude = 120
-
-  duration = -1
-}
-
+//----------------------------------------------
 
 
 
@@ -206,7 +101,7 @@ Behavior = BHV_AvoidCollision
   // Parameters specific to this behavior
   // ------------------------------------
   // Distances are 2x real life in MOOS
-        use_refinery = true 
+        // use_refinery = true 
       pwt_inner_dist = 50
       pwt_outer_dist = 160  // Range to contact outside which the behavior has zero priority weight (alert_range). Default is 200
       completed_dist = 190  // cpa_range
@@ -215,33 +110,5 @@ Behavior = BHV_AvoidCollision
     min_util_cpa_dist = 20 // 10 m
     max_util_cpa_dist = 80 // 40 m
 }
-
-
-// //----------------------------------------------
-// Behavior = BHV_OpRegionRecover
-// {
-//   name         = recover
-//   pwt          = 300
-//   updates      = RECOVER_UPDATES
-//   activeflag   = RECOVER = true
-//   inactiveflag = RECOVER = false
-
-// 	// pav60 explicitly:
-//   // polygon = pts={60,10:-30.36,-32.837:-4.658,-87.053:85.702,-44.216}
-
-// 	// pav90 explicitly
-//   // polygon = pts={60,10:-75.54,-54.256:-36.987,-135.58:98.554,-71.324}
-
-// 	// Prefer to get the rescue region from uFldRescuMgr
-// 	dynamic_region_var = RESCUE_REGION
-	
-// 	buffer_dist = 10
-	
-// 	trigger_entry_time = 1
-//   trigger_exit_time  = 1
-
-// 	visual_hints = edge_size = 2
-// 	visual_hints = edge_color = gray30
-// }
 
 
