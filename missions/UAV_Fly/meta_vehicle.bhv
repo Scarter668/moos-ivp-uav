@@ -248,7 +248,7 @@ Behavior = BHV_AvoidCollision
 
 
 
-Behavior = BHV_Voronoi2
+Behavior = BHV_Voronoi_uav
 { 
   name      = vcover
   pwt       = 150
@@ -263,12 +263,14 @@ Behavior = BHV_Voronoi2
               speed = $(SPEED)         
    stale_nav_thresh = 5
   stale_poly_thresh = 10
+  stale_setpt_thresh = 10
 
-       setpt_method = centroid
- 
+       setpt_method = gridsearch
+
    visual_hints = setpt_size   = 4 
    visual_hints = setpt_color  = dodger_blue 
    //  visual_hints = vertex_color  = yellow        // default
    //  visual_hints = vertex_lcolor = aqua          // default
     visual_hints = label         = zone3         // example
 }
+

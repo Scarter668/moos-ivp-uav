@@ -19,6 +19,8 @@
 #include "XYSegList.h"
 #include "NodeRecord.h"
 
+#include "VoronoiField.h"
+
 class Proxonoi : public AppCastingMOOSApp
 {
 public:
@@ -38,30 +40,32 @@ protected:
   void registerVariables();
 
   bool handleConfigOpRegion(std::string);
+  bool handleStringSetPointMethod(std::string);
+
   void handleMailNodeReport(std::string);
   bool handleMailProxPolyView(std::string);
   bool handleMailProxClear();
   bool handleMailProxSetIgnoreList(std::string);
-  bool handleMailNodeMessage(std::string);
+  // bool handleMailNodeMessage(std::string);
 
-  bool updateSplitLines();
   bool updateVoronoiPoly();
+  XYPoint calculateGridSearchSetpoint() const ;
 
-  bool updatePostAreaBalanceSetpoint();
+
+  XYPoint updateViewAreaBalanceSetpoint();
+  XYPoint updateViewChurnSetpoint();
+  XYPoint updateViewGridSearchSetpoint();
   void postCentroidSetpoint();
-  
-  void checkPolyStaleness();
+
+  void checkRemoveVehicleStaleness();
 
   void shareProxPolyArea();
   void shareProxPoly();
 
-  XYPoint getSetPtAreaBalance(const XYPolygon op_region, std::string key, const std::map<std::string, XYPolygon> &map_vpolygons, const std::map<std::string, double> &map_vAreas) const; 
-  XYPoint getSetPtAreaBalance() const; 
-
-
 private: // Configuration variables
   std::string m_ownship;
   std::string m_vcolor;
+  std::string m_setpt_method;
 
   double m_reject_range;
   bool m_post_poly;
@@ -74,7 +78,7 @@ private: // Configuration variables
   std::string m_region_up_var;
   std::string m_ignore_list_up_var;
 
-  double m_neighbor_stale_treshold;
+  double m_node_record_stale_treshold;
 
 private: // State variables
   double m_osx;
@@ -87,20 +91,14 @@ private: // State variables
   int m_skip_count;
 
   bool m_os_in_prox_region;
-
-  XYPolygon m_prox_region;
   XYPolygon m_prox_poly;
 
   bool m_poly_erase_pending;
 
   std::map<std::string, NodeRecord> m_map_node_records;
-  std::map<std::string, XYSegList> m_map_split_lines;
+  VoronoiField m_voronoi_field;
+
   std::map<std::string, double> m_map_ranges;
-
-  std::map<std::string, XYPolygon> m_map_vPolys;
-  std::map<std::string, double> m_map_vAreas;
-  std::map<std::string, double> m_map_neighbour_time_received;
 };
-
 
 #endif

@@ -18,7 +18,10 @@
 #include "XYFormatUtilsPoly.h"
 #include "NodeRecordUtils.h"
 #include "NodeMessage.h"
+
 #include "NodeMessageUtils.h"
+
+#include "VoronoiSetPtMethods.h"
 
 #include <cmath>
 #include "AngleUtils.h"
@@ -44,15 +47,18 @@ Proxonoi::Proxonoi()
   // State Variables
   m_osx = 0;
   m_osy = 0;
-  m_osx_tstamp = 0;
-  m_osy_tstamp = 0;
+  m_osx_tstamp = false;
+  m_osy_tstamp = false;
   m_poly_erase_pending = false;
   m_last_posted_spec = "";
   m_skip_count = 0;
 
   m_vcolor = "white";
 
-  m_neighbor_stale_treshold = 10; // 10s
+  m_node_record_stale_treshold = 10; // 10s
+
+  m_voronoi_field = VoronoiField();
+  m_setpt_method = "center";
 }
 
 //---------------------------------------------------------
@@ -61,6 +67,9 @@ Proxonoi::Proxonoi()
 bool Proxonoi::OnNewMail(MOOSMSG_LIST &NewMail)
 {
   AppCastingMOOSApp::OnNewMail(NewMail);
+
+  static bool got_osx = false;
+  static bool got_osy = false;
 
   MOOSMSG_LIST::iterator p;
   for (p = NewMail.begin(); p != NewMail.end(); p++)
@@ -79,16 +88,19 @@ bool Proxonoi::OnNewMail(MOOSMSG_LIST &NewMail)
 #endif
 
     bool handled = false;
+
     if (key == "NAV_X")
     {
       m_osx = dval;
       m_osx_tstamp = mtime;
+      got_osx = true;
       handled = true;
     }
     else if (key == "NAV_Y")
     {
       m_osy = dval;
       m_osy_tstamp = mtime;
+      got_osy = true;
       handled = true;
     }
     else if (key == "PROX_CLEAR")
@@ -107,32 +119,25 @@ bool Proxonoi::OnNewMail(MOOSMSG_LIST &NewMail)
       handleMailProxClear();
       handled = handleConfigOpRegion(sval);
     }
-    else if (key == "NODE_MESSAGE")
-      handled = handleMailNodeMessage(sval);
-
-    // else if (key == "PROX_POLY_AREA")
-    // {
-    //   m_map_vAreas[comm] = dval;
-    //   m_map_neighbour_time_received[comm] = m_curr_time;
-    //   handled = true;
-
-    // }
-    // else if (key == "PROX_POLY_NEIGHBOR")
-    // {
-    //   auto poly = string2Poly(sval);
-    //   handled = poly.valid();
-    //   if (handled)
-    //   {
-    //     m_map_vPolys[comm] = poly;
-    //     m_map_neighbour_time_received[comm] = m_curr_time;
-    //   }
-    // }
+    else if (key == "PROX_SETPT_METHOD")
+      handled = handleStringSetPointMethod(sval);
 
     else if (key != "APPCAST_REQ") // handled by AppCastingMOOSApp
       reportRunWarning("Unhandled Mail: " + key);
 
     if (!handled)
       reportRunWarning("Unhandled Mail: " + key);
+  }
+
+  if (got_osx && got_osy)
+  {
+    XYPoint os_point(m_osx, m_osy);
+    double tstamp = MOOSTime();
+    os_point.set_time(tstamp);
+    m_voronoi_field.modProxPoint(m_ownship, os_point);
+
+    got_osx = false;
+    got_osy = false;
   }
 
   return (true);
@@ -154,11 +159,16 @@ bool Proxonoi::Iterate()
 {
   AppCastingMOOSApp::Iterate();
 
+  // //===========================================================
+  // // Part 1: Update the split line based on the information of
+  // // nearby contacts.
+  // //===========================================================
+  // updateSplitLines();
+
   //===========================================================
-  // Part 1: Update the split line based on the information of
-  // nearby contacts.
+  // Part 1: Update the non stale vehicles
   //===========================================================
-  updateSplitLines();
+  checkRemoveVehicleStaleness();
 
   //===========================================================
   // Part 2: Using the split lines, carve down the voronoi poly
@@ -169,9 +179,35 @@ bool Proxonoi::Iterate()
   // Update the AreaBalanceSetpoint
   //===========================================================
 
-  checkPolyStaleness();
+  XYPoint center_reg = m_voronoi_field.getRegionPoly().get_center_pt();
+  center_reg.set_label("center_reg");
+  center_reg.set_label_color("off");
+  center_reg.set_color("vertex", "red");
+  center_reg.set_vertex_size(10);
+  Notify("VIEW_POINT", center_reg.get_spec());
+  
+  XYPoint centroid_reg = m_voronoi_field.getRegionPoly().get_centroid_pt();
+  centroid_reg.set_label("centroid_reg");
+  centroid_reg.set_label_color("off");
+  centroid_reg.set_color("vertex", "yellow");
+  centroid_reg.set_vertex_size(10);
+  Notify("VIEW_POINT", centroid_reg.get_spec());
+  
 
-  updatePostAreaBalanceSetpoint();
+  auto setpt_area = updateViewAreaBalanceSetpoint();
+  
+  auto setpt_churn = updateViewChurnSetpoint();
+  
+  auto setpt_grid = updateViewGridSearchSetpoint();
+  
+  XYPoint setpt;
+  if (m_setpt_method=="gridsearch")
+      setpt = setpt_grid;
+  
+  if(setpt.valid())
+  {
+    Notify("PROX_SETPT", setpt.get_spec());
+  }
 
   postCentroidSetpoint();
 
@@ -213,11 +249,12 @@ bool Proxonoi::Iterate()
     m_poly_erase_pending = false;
   }
 
-  if ((m_skip_count % 200) == 0)
+  if ((m_skip_count % 400) == 0)
   {
-    if (m_prox_region.is_convex())
+    auto region = m_voronoi_field.getRegionPoly();
+    if (region.is_convex())
     {
-      std::string spec = m_prox_region.get_spec();
+      std::string spec = region.get_spec();
       bool new_spec = (spec != m_last_posted_spec);
       if (m_post_region && new_spec)
       {
@@ -231,11 +268,11 @@ bool Proxonoi::Iterate()
   else
     m_skip_count += 1;
 
-  if ((m_iteration % 1) == 0)
-  {
-    shareProxPolyArea();
-    shareProxPoly();
-  }
+  // if ((m_iteration % 20) == 0)
+  // {
+  //   shareProxPolyArea();
+  //   shareProxPoly();
+  // }
 
   AppCastingMOOSApp::PostReport();
   return (true);
@@ -297,7 +334,7 @@ bool Proxonoi::OnStartUp()
     else if (param == "reject_range")
       handled = setDoubleOnString(m_reject_range, value);
     else if (param == "neighbor_stale_treshold")
-      handled = setNonNegDoubleOnString(m_neighbor_stale_treshold, value);
+      handled = setNonNegDoubleOnString(m_node_record_stale_treshold, value);
 
     else if (param == "region_update_var")
     {
@@ -320,6 +357,8 @@ bool Proxonoi::OnStartUp()
       m_vcolor = value;
       handled = true;
     }
+    else if (param == "setpt_method")
+      handled = handleStringSetPointMethod(value);
 
     if (!handled)
       reportUnhandledConfigWarning(orig);
@@ -343,7 +382,7 @@ void Proxonoi::registerVariables()
   Register(m_ignore_list_up_var, 0);
   Register(m_region_up_var, 0);
 
-  Register("NODE_MESSAGE", 0);
+  Register("PROX_SETPT_METHOD", 0);
 }
 
 //---------------------------------------------------------
@@ -360,51 +399,38 @@ bool Proxonoi::handleConfigOpRegion(std::string opstr)
   // If all good, then clear the states
   handleMailProxClear();
 
-  m_prox_region = op_region;
+  m_voronoi_field.setRegionPoly(op_region);
+
+  return (true);
+}
+
+bool Proxonoi::handleStringSetPointMethod(std::string method)
+{
+  method = tolower(method);
+  if ((method == "area_balance") ||
+      (method == "churn") ||
+      (method == "gridsearch") ||
+      (method == "centroid") ||
+      (method == "center"))
+    m_setpt_method = method;
+  else
+    return (false);
+
   return (true);
 }
 
 //---------------------------------------------------------
 // Procedure: handleMailNodeMessage
 
-bool Proxonoi::handleMailNodeMessage(std::string msg)
-{
-  NodeMessage node_msg = string2NodeMessage(msg);
-  std::string vname = tolower(node_msg.getSourceNode());
-  if (vname == m_ownship)
-    return (true);
+// bool Proxonoi::handleMailNodeMessage(std::string msg)
+// {
+//   NodeMessage node_msg = string2NodeMessage(msg);
+//   std::string vname = tolower(node_msg.getSourceNode());
+//   if (vname == m_ownship)
+//     return (true);
 
-  Logger::info("Received node message from " + vname + ": " + msg);
-
-  // If the message is from a vehicle we are ignoring, just ignore it.
-  if (m_name_reject.count(vname) > 0)
-    return (true);
-
-  std::string msg_var = node_msg.getVarName();
-
-  if (msg_var == "PROX_POLY_AREA")
-  {
-    m_map_vAreas[vname] = node_msg.getDoubleVal();
-    m_map_neighbour_time_received[vname] = m_curr_time;
-  }
-  else if (msg_var == "PROX_POLY_NEIGHBOR")
-  {
-
-    auto poly = string2Poly(node_msg.getStringValX());
-    if (poly.is_convex())
-    {
-      m_map_vPolys[vname] = poly;
-      m_map_neighbour_time_received[vname] = m_curr_time;
-    }
-    else
-    {
-      Logger::error("Received invalid poly from " + vname + ": " + node_msg.getStringVal());
-      reportRunWarning("Bad Poly Received");
-    }
-  }
-
-  return (true);
-}
+//   return (true);
+// }
 
 //---------------------------------------------------------
 // Procedure: handleMailNodeReport
@@ -465,11 +491,11 @@ void Proxonoi::handleMailNodeReport(std::string report)
   // If we are (a) not currently tracking the given vehicle, and (b)
   // a reject_range is enabled, and (c) the contact is outside the
   // reject_range, then ignore this contact.
+  double cnx = new_node_record.getX();
+  double cny = new_node_record.getY();
+  double range = hypot(m_osx - cnx, m_osy - cny);
   if (newly_known_vehicle && (m_reject_range > 0))
   {
-    double cnx = new_node_record.getX();
-    double cny = new_node_record.getY();
-    double range = hypot(m_osx - cnx, m_osy - cny);
     if (range > m_reject_range)
       return;
   }
@@ -481,6 +507,15 @@ void Proxonoi::handleMailNodeReport(std::string report)
   //}
 
   m_map_node_records[vname] = new_node_record;
+  m_map_ranges[vname] = range;
+
+  XYPoint pt(cnx, cny);
+  pt.set_time(m_curr_time);
+
+  if (newly_known_vehicle)
+    m_voronoi_field.addProxPoint(vname, pt);
+  else
+    m_voronoi_field.modProxPoint(vname, pt);
 }
 
 //---------------------------------------------------------
@@ -513,10 +548,14 @@ bool Proxonoi::handleMailProxClear()
   // Part 1: Reset the prox poly to the entire region. But we
   // want to retain the label of the prox_poly on the new one
   // ========================================================
-  std::string prox_label = m_prox_poly.get_label();
-  m_prox_poly = m_prox_region;
-  m_prox_poly.set_label(prox_label);
 
+  m_voronoi_field.clear();
+  XYPoint pt(m_osx, m_osy);
+  pt.set_time(m_curr_time);
+  m_voronoi_field.addProxPoint(m_ownship, pt);
+  m_voronoi_field.updateProxPolys();
+
+  m_prox_poly = m_voronoi_field.getVPoly(m_ownship);
   m_prox_poly.set_label("vpoly_" + m_ownship);
 
   // ========================================================
@@ -524,48 +563,12 @@ bool Proxonoi::handleMailProxClear()
   // ========================================================
 
   m_map_node_records.clear();
-  m_map_split_lines.clear();
-  m_map_ranges.clear();
-
-  m_map_vPolys.clear();
-  m_map_vAreas.clear();
 
   // ========================================================
   // Part 3: Mark the prox poly as needing to be erased
   // ========================================================
   m_poly_erase_pending = true;
 
-  return (true);
-}
-
-//------------------------------------------------------------
-// Procedure: updateSplitLines()
-
-bool Proxonoi::updateSplitLines()
-{
-  std::map<std::string, NodeRecord>::iterator p;
-  for (p = m_map_node_records.begin(); p != m_map_node_records.end(); p++)
-  {
-    std::string vname = p->first;
-    NodeRecord record = p->second;
-    double cnx = record.getX();
-    double cny = record.getY();
-
-    double range = hypot((m_osx - cnx), (m_osy - cny));
-    m_map_ranges[vname] = range;
-
-    // If the contact is in the op_region, then create a split line
-    // otherwise the splitline associated with the contaxt is null
-    XYSegList segl;
-    if (m_prox_region.contains(cnx, cny))
-    {
-      double sx1, sy1, sx2, sy2;
-      vsplit(m_osx, m_osy, cnx, cny, sx1, sy1, sx2, sy2);
-      segl.add_vertex(sx1, sy1);
-      segl.add_vertex(sx2, sy2);
-    }
-    m_map_split_lines[vname] = segl;
-  }
   return (true);
 }
 
@@ -593,8 +596,8 @@ void Proxonoi::shareProxPoly()
     return;
 
   NodeMessage msg(m_ownship, "all", "PROX_POLY_NEIGHBOR");
-  
-  Logger::info("Sharing Prox Poly (3spec): " + m_prox_poly.get_spec(3));
+
+  // Logger::info("Sharing Prox Poly (3spec): " + m_prox_poly.get_spec(3));
 
   msg.setStringVal(m_prox_poly.get_spec(3));
   msg.setColor("off");
@@ -608,21 +611,13 @@ void Proxonoi::shareProxPoly()
 bool Proxonoi::updateVoronoiPoly()
 {
   m_prox_poly = XYPolygon(); // Init to a null poly
-                             // m_prox_poly.add_vertex(0,0);
-  // m_prox_poly.add_vertex(1,0);
-  // m_prox_poly.add_vertex(0,1);
-  m_prox_poly.set_label("vpoly_" + m_ownship);
-
-  // Sanity check 1: if op_region is null return false
-  if (!m_prox_region.is_convex())
-    return (false);
 
   // Sanity check 2: if no ownship position return false
-  if ((m_osx_tstamp == 0) || (m_osy_tstamp == 0))
+  if ((m_osx_tstamp == false) || (m_osy_tstamp == false))
     return (false);
 
   // Sanity check 3: if ownship not in op_region, return false
-  if (!m_prox_region.contains(m_osx, m_osy))
+  if (!m_voronoi_field.containsPoint(m_osx, m_osy))
   {
     if (m_os_in_prox_region)
       m_poly_erase_pending = true;
@@ -632,23 +627,10 @@ bool Proxonoi::updateVoronoiPoly()
   else
     m_os_in_prox_region = true;
 
-  // Passed sanity checks, init voronoi poly to entire op_region
-  m_prox_poly = m_prox_region;
+  m_voronoi_field.updateProxPolys();
+  m_prox_poly = m_voronoi_field.getVPoly(m_ownship);
+
   m_prox_poly.set_label("vpoly_" + m_ownship);
-
-  // Special case: if no contact info, vornoi poly is the
-  // entire op_region and we return true
-  if (m_map_node_records.size() == 0)
-    return (true);
-
-  // Proceed with building the voronoi poly
-  std::map<std::string, XYSegList>::iterator p;
-  for (p = m_map_split_lines.begin(); p != m_map_split_lines.end(); p++)
-  {
-    std::string vname = p->first;
-    XYSegList segl = p->second;
-    m_prox_poly = polychop(m_prox_poly, m_osx, m_osy, segl);
-  }
 
   // Possibly combine very close vertices. In this case, vertices
   // within one meter of each other.
@@ -713,9 +695,17 @@ bool Proxonoi::buildReport()
   m_msgs << "Reject Range:   " << reject_range << std::endl;
   m_msgs << "In Prox Region: " << in_region << std::endl;
   m_msgs << "Erase Pending:  " << erase_pending << std::endl;
+  m_msgs << "Treshold Value: " << m_node_record_stale_treshold << std::endl;
 
-  m_msgs << "Treshold Value: " << m_neighbor_stale_treshold << std::endl;
+  double area = m_voronoi_field.getVArea(m_ownship);
+  if (area > 10000)
+    area /= 1000;
 
+  m_msgs << "Ownship Area:       " << doubleToStringX(area, 0) << std::endl;
+  m_msgs << "Ownship Position:   (" << m_osx << ", " << m_osy << ")" << std::endl;
+  m_msgs << "Setpoint Method:   " << m_setpt_method << std::endl;
+
+  m_msgs << "\n\n";
   //=================================================================
   // Part 4: Contact Status Summary
   //=================================================================
@@ -740,26 +730,16 @@ bool Proxonoi::buildReport()
     std::string time_str = "-";
     std::string valid_poly_str = "-";
 
+    bool valid_poly = m_voronoi_field.getVPoly(vname).is_convex();
+    valid_poly_str = boolToString(valid_poly);
 
-    
-    if (m_map_vPolys.count(vname) > 0)
-    {
-      bool valid_poly = m_map_vPolys.at(vname).is_convex();
-      valid_poly_str = boolToString(valid_poly);
-    }
-    if (m_map_vAreas.count(vname) > 0)
-    {
-      double area = m_map_vAreas.at(vname);
-      if (area > 10000)
-        area /= 1000;
-      area_str = doubleToStringX(area, 0);
-    }
+    double area = m_voronoi_field.getVArea(vname);
+    if (area > 10000)
+      area /= 1000;
+    area_str = doubleToStringX(area, 0);
 
-    if (m_map_neighbour_time_received.count(vname) > 0)
-    {
-      double time_to_treshold = (MOOSTime() - m_map_neighbour_time_received.at(vname));
-      time_str = doubleToStringX(time_to_treshold, 1);
-    }
+    double time_to_treshold = (MOOSTime() - m_voronoi_field.getVPoint(vname).get_time());
+    time_str = doubleToStringX(time_to_treshold, 1);
 
     actab << vname << range << area_str << time_str << valid_poly_str;
   }
@@ -768,28 +748,75 @@ bool Proxonoi::buildReport()
   return (true);
 }
 
-bool Proxonoi::updatePostAreaBalanceSetpoint()
+XYPoint Proxonoi::updateViewAreaBalanceSetpoint()
 {
 
-  XYPoint areaSetPt = getSetPtAreaBalance();
+  XYPoint nullpt;
+  XYPoint areaSetPt = getSetPtAreaBalance(m_voronoi_field, m_ownship);
 
   if (!areaSetPt.valid())
   {
     Logger::warning("Area Setpoint not valid");
-    return false;
+    return nullpt;
   }
 
-  std::string label = "areaSetPt_" + m_ownship;
+  // std::string label = "areaSetPt_" + m_ownship;
+  std::string label = "a_" + m_ownship;
   areaSetPt.set_label(label);
-  areaSetPt.set_label_color("off");
+  // areaSetPt.set_label_color("off");
   areaSetPt.set_color("vertex", m_vcolor);
   areaSetPt.set_vertex_size(12);
-  areaSetPt.set_duration(5);
+  // areaSetPt.set_duration(5);
   Notify("VIEW_POINT", areaSetPt.get_spec());
 
-  Notify("PROX_AREA_SETPT", areaSetPt.get_spec());
+  return areaSetPt;
+}
 
-  return true;
+XYPoint Proxonoi::updateViewChurnSetpoint()
+{
+  XYPoint nullpt;
+  XYPoint churnSetPt = getSetPtChurn(m_voronoi_field, m_ownship);
+
+  if (!churnSetPt.valid())
+  {
+    Logger::warning("Area Setpoint not valid");
+    return nullpt;
+  }
+
+  // std::string label = "churnSetPt_" + m_ownship;
+  std::string label = "c_" + m_ownship;
+  churnSetPt.set_label(label);
+  // churnSetPt.set_label_color("off");
+  churnSetPt.set_color("vertex", m_vcolor);
+  churnSetPt.set_vertex_size(10);
+  // churnSetPt.set_duration(5);
+  Notify("VIEW_POINT", churnSetPt.get_spec());
+
+  return churnSetPt;
+}
+
+
+XYPoint Proxonoi::updateViewGridSearchSetpoint()
+{
+  XYPoint nullpt;
+  XYPoint gridSearchSetPt = calculateGridSearchSetpoint();
+
+  if (!gridSearchSetPt.valid())
+  {
+    Logger::warning("Area Setpoint not valid");
+    return nullpt;
+  }
+
+  // std::string label = "gridSearchSetPt_" + m_ownship;
+  std::string label = "g_" + m_ownship;
+  gridSearchSetPt.set_label(label);
+  // gridSearchSetPt.set_label_color("off");
+  gridSearchSetPt.set_color("vertex", m_vcolor);
+  gridSearchSetPt.set_vertex_size(10);
+  // gridSearchSetPt.set_duration(5);
+  Notify("VIEW_POINT", gridSearchSetPt.get_spec());
+
+  return gridSearchSetPt;
 }
 
 void Proxonoi::postCentroidSetpoint()
@@ -802,7 +829,7 @@ void Proxonoi::postCentroidSetpoint()
     return;
   }
 
-  double area = m_prox_poly.area();
+  double area = m_voronoi_field.getVArea(m_ownship); // O(1)
   if (area > 10000)
     area /= 1000;
   unsigned int uint_area = (unsigned int)(area);
@@ -817,135 +844,107 @@ void Proxonoi::postCentroidSetpoint()
   Notify("VIEW_POINT", centroidSetPt.get_spec());
 }
 
-void Proxonoi::checkPolyStaleness()
+void Proxonoi::checkRemoveVehicleStaleness()
 {
 
   double curr_time = MOOSTime();
 
-  for (auto p = m_map_neighbour_time_received.begin(); p != m_map_neighbour_time_received.end(); p++)
+  std::vector<std::string> vnames = m_voronoi_field.getStaleKeys(curr_time, m_node_record_stale_treshold);
+
+  for (const auto &vname : vnames)
   {
-    std::string key = p->first;
-    double time_received = p->second;
 
-    if (key == m_ownship)
+    if (vname == m_ownship)
       continue;
 
-    auto timediff = (curr_time - time_received);
-    // Logger::info("Checking Poly Staleness: " + key + " " + doubleToStringX(timediff, 1));
+    m_voronoi_field.removePoint(vname);
+    auto time = m_voronoi_field.getVPoint(vname).get_time();
 
-    // Check if the time received is older than the threshold
-    if ((curr_time - time_received) <= m_neighbor_stale_treshold)
-      continue;
-
-    m_map_vPolys.erase(key);
-    m_map_vAreas.erase(key);
-    m_map_neighbour_time_received.erase(key);
-    Logger::info("Checking Poly Staleness: Erased " + key);
+    Logger::info("Checking Poly Staleness: Erased " + vname + " time: " + doubleToStringX(time, 2) + " curr_time: " + doubleToStringX(curr_time, 2) +
+                 " treshold: " + doubleToStringX(m_node_record_stale_treshold, 2) +
+                 " diff: " + doubleToStringX(curr_time - time, 2));
   }
 }
 
-XYPoint Proxonoi::getSetPtAreaBalance() const
+
+
+//-----------------------------------------------------------
+// Procedure: getSetPtChurn()
+
+XYPoint Proxonoi::calculateGridSearchSetpoint() const
 {
   // ==============================================
   // Part 1: Sanity Checks
   // ==============================================
-  XYPoint null_pt; // invalid by default
+  XYPoint null_pt;
+  if(!m_voronoi_field.hasKey(m_ownship))
+    return(null_pt);
 
-  if (!m_prox_poly.is_convex())
-  {
-    Logger::warning("current voronoi poly is not convex");
-    return (null_pt);
+  
+  if(!m_prox_poly.valid())
+    return(null_pt);
+  
+  XYPoint centroid_pt = m_prox_poly.get_centroid_pt();
+  // XYPoint areabl_pt = getSetPtAreaBalance(m_voronoi_field, m_ownship);
+
+
+
+  auto ref_pt = centroid_pt;
+
+  if(!ref_pt.valid()){
+    Logger::warning("Centroid Setpoint not valid");
+    return(null_pt);
   }
 
-  XYPoint cpt = m_prox_poly.get_centroid_pt();
-  if (!cpt.valid())
-  {
-    Logger::warning("Centroid not valid");
-    return (null_pt);
+
+  // Logger::info("Centroid Setpoint: " + ref_pt.get_spec());
+  
+  XYPoint reg_center_pt = m_voronoi_field.getRegionPoly().get_center_pt();
+  
+  double rel_ang = relAng(reg_center_pt, ref_pt);
+  
+  // Logger::info("Relative angle calculated: " + doubleToString(rel_ang, 2));
+  
+  static XYPoint target_pt;
+  
+  double heading = rel_ang-90;
+  double default_dist = 200;
+
+  XYPoint final_pt = projectPoint(heading, default_dist, ref_pt);
+  
+  XYPoint cpt = m_voronoi_field.getVPoint(m_ownship);
+  double dist_to_target = 0;
+  // Logger::info("Current Point: " + cpt.get_spec());
+  // Logger::info("Final Point: " + final_pt.get_spec());
+  // Logger::info("Target Point: " + target_pt.get_spec());
+  if(target_pt.valid()){
+    dist_to_target = distPointToPoint(cpt, target_pt);
+    // Logger::info("Distance to target calculated: " + doubleToString(dist_to_target, 2));
   }
-
-  // Find the neighbors of the current polygon
-  std::vector<std::string> neighbors;
-  XYPolygon kpoly = m_prox_poly;
-  for (auto p = m_map_vPolys.begin(); p != m_map_vPolys.end(); p++)
-  {
-    std::string pkey = tolower(p->first);
-    if (pkey == m_ownship)
-      continue;
-    
-    if(m_map_vAreas.count(pkey) == 0)
-      continue;
-      
-    if(m_name_reject.count(pkey) > 0)
-      continue;
-
-
-
-    double dist = kpoly.dist_to_poly(p->second);
-    if (dist < 1)
-      neighbors.push_back(pkey);
+  else{
+    dist_to_target = distPointToPoint(cpt, final_pt);
+    // Logger::info("Distance to final calculated: " + doubleToString(dist_to_target, 2));
   }
+  
+  // Logger::info("Distance to target calculated: " + doubleToString(dist_to_target, 2));
+  // create a function that goes to 1000 as dist goes to 30
+  // double mag = 1000 * (1 - (dist / 30));
+  double mag = 150 * (1 - (dist_to_target / 150));
+  if (mag < 0)
+    mag = 0;
+  else if (mag > 1000) 
+    mag = 1000;
 
-  if (neighbors.size() == 0)
-  {
-    Logger::info("No neighbors found");
-    return (cpt);
-  }
-
-  Logger::info("Found " + uintToString(neighbors.size()) + " neighbors");
+  // Logger::info("Magnitude calculated: " + doubleToString(mag, 2));
 
 
-  // ==============================================
-  // Part 2: Calculate component vectors, one for each
-  //         neighbor and add all vectors, keeping track
-  //         of the total magnitud along the way
-  // ==============================================
-  double pa = m_prox_poly.area();
-  double total_abs_mag = 0;
+  final_pt = projectPoint(heading, mag+default_dist, ref_pt);
+  // Logger::info("Final point calculated: " + final_pt.get_spec());
 
-  // The vector point (vpt) is sum of all hdg/mag vectors.
-  // It starts at the current center point of the cell.
-  XYPoint vpt = cpt;
-  for (unsigned int j = 0; j < neighbors.size(); j++)
-  {
-    std::string jkey = neighbors[j];
-    XYPoint jpt = m_map_vPolys.at(jkey).get_center_pt();
-    double paj = m_map_vAreas.at(jkey);
-
-    double hdg = relAng(cpt, jpt);
-    double mag = 0;
-    double dist = distPointToPoint(cpt, jpt);
-    if ((pa + paj) > 0)
-    {
-      double nfactor = paj - pa;
-      double dfactor = (pa + paj) / 2;
-      mag = (nfactor / dfactor) * (dist / 2);
-    }
-
-    // Add the new hdg/mag vector to the running sum
-    vpt = projectPoint(hdg, mag, vpt);
-    total_abs_mag += std::abs(mag);
-  }
-
-  // ==============================================
-  // Part 3: Define the final point, having the heading of the sum
-  //         of vectors, but magnitude is avg of all magnitudes
-  // ==============================================
-  double avg_abs_mag = total_abs_mag / (double)(neighbors.size());
-
-  double hdg = relAng(cpt, vpt);
-  double dist = avg_abs_mag;
-
-  XYPoint final_pt = projectPoint(hdg, dist, cpt);
-
-  // ==============================================
-  // Part 4: Sanity check that point is within op_region
-  // ==============================================
-  if (!m_prox_region.contains(final_pt.x(), final_pt.y()))
-    final_pt = m_prox_region.closest_point_on_poly(final_pt);
-
-  return (final_pt);
+  target_pt = final_pt;
+  return(final_pt);  
 }
+
 
 //------------------------------------------------------------
 // UTILITY FUNCTIONS
@@ -1047,4 +1046,7 @@ XYPoint Proxonoi::getSetPtAreaBalance() const
 
 //   return (final_pt);
 // }
+
+
+
 

@@ -169,10 +169,10 @@ ProcessConfig = uFldShoreBroker
   bridge  = src=UFFS_FINISH
   bridge  = src=DISCOVERED_FIRE
   bridge  = src=MISSION_COMPLETE
-  // bridge  = src=RESCUE_REGION
 
+  
 
-  qbridge = ARM_UAV, HELM_STATUS, MOOS_MANUAL_OVERRIDE
+  qbridge = ARM_UAV, HELM_STATUS, MOOS_MANUAL_OVERRIDE, PROX_SETPT_METHOD
 
   qbridge = GCS_COMMAND, PROX_POLY_VIEW // Most commands from the GCS
 
@@ -416,6 +416,13 @@ ProcessConfig = pMarineViewer
   action = menu_key=GSP_map_print_init #  GSP_MAP_PRINT=1
   action = menu_key=GSP_map_print_cover #  GSP_MAP_PRINT=2
   action+ = menu_key=GSP_map_print_direction #  GSP_MAP_PRINT=3
+
+  action = menu_key=setpt_method_GRIDSEARCH # PROX_SETPT_METHOD_ALL=gridsearch
+  action = menu_key=setpt_method_CENTROID # PROX_SETPT_METHOD_ALL=centroid
+  action+= menu_key=setpt_method_CENTER # PROX_SETPT_METHOD_ALL=center
+  
+
+
 
   action+ = menu_key=GSV_show_sensor  #  GSV_VISUALIZE_SENSOR_AREA=true
   action+ = menu_key=UFFS_show_sensor #  GSV_VISUALIZE_SENSOR_AREA=false
