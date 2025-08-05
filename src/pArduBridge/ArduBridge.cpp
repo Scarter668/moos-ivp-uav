@@ -770,6 +770,8 @@ bool ArduBridge::OnStartUp()
     }
   }
 
+  Logger::info("setUpMission");
+  
   if (!m_uav_model.setUpMission(!m_is_simulation))
   {
     std::cout << "Mission setup failed" << std::endl;
@@ -782,7 +784,11 @@ bool ArduBridge::OnStartUp()
     return (false);
   }
 
+  Logger::info("startCommandSender");
+
   m_uav_model.startCommandSender();
+
+  Logger::info("registerSendDesiredValuesFunction");
 
   m_uav_model.registerSendDesiredValuesFunction([this](UAV_Model &uav, bool forceSend)
                                                 {

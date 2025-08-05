@@ -126,6 +126,8 @@ bool UAV_Model::connectToUAV(std::string url)
 bool UAV_Model::setUpMission(bool onlyRegisterHome)
 {
 
+  Logger::info("onlyRegisterHome");
+  
   if (!onlyRegisterHome)
   {
     auto clear_result = m_mission_raw_ptr->clear_mission();
@@ -136,12 +138,19 @@ bool UAV_Model::setUpMission(bool onlyRegisterHome)
     }
   }
 
+  Logger::info("downloading mission");
+
   auto download_result = m_mission_raw_ptr->download_mission();
 
+  Logger::info("done downloading");
+  
   std::vector<mavsdk::MissionRaw::MissionItem> mission_plan;
 
-  if (download_result.first != mavsdk::MissionRaw::Result::Success)
+  if (download_result.first != mavsdk::MissionRaw::Result::Success || download_result.second.size() == 0)
   {
+
+    Logger::info("mission download failed");
+    
     m_warning_system_ptr->queue_monitorWarningForXseconds("Failed to download mission", WARNING_DURATION);
     std::cout << "Failed to download mission - Using default home location\n";
 
@@ -166,6 +175,13 @@ bool UAV_Model::setUpMission(bool onlyRegisterHome)
     mission_plan = download_result.second;
   }
 
+  std::cout << "Mission items \n";
+  for(const auto& p : mission_plan){
+    std::cout << p << std::endl;
+  }
+  
+  std::cout << "mission_plan size is " << mission_plan.size() << std::endl;
+    
   mavsdk::MissionRaw::MissionItem home_point = mission_plan[0];
 
   std::stringstream ss;
