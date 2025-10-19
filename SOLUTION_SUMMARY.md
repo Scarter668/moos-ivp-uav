@@ -31,7 +31,7 @@ Created a single combined patch file (`combined.patch`) that:
 
 **Patch Contents:**
 The combined patch includes:
-- Downgrade `cmake_minimum_required` from VERSION 3.15 to VERSION 3.5 (for Ubuntu 18.04 support)
+- Adjust `cmake_minimum_required` from VERSION 3.15 to VERSION 3.5 (for Ubuntu 18.04 support)
 - Add conditional logic for `NAMELINK_COMPONENT` (requires CMake >= 3.12)
 - Add conditional logic for `TYPE INCLUDE` (requires CMake > 3.13.5)
 - Add conditional logic for pkg-config generation (requires CMake > 3.14.7)
@@ -42,11 +42,11 @@ The combined patch includes:
 
 ### Main Repository (moos-ivp-uav)
 - Branch: `copilot/fix-build-error-tinyxml2`
-- Submodule reference updated to point to commit `c848e73d` in MAVSDK
+- Submodule reference updated to point to commit `c848e73d8d0c3ed39dfca2875b5a8deac6b06aa4` in MAVSDK
 
 ### MAVSDK Submodule
-- Branch: `fix-tinyxml2-patches` (new branch created for this fix)
-- Commit: `c848e73d8d0c3ed39dfca2875b5a8deac6b06aa4`
+- Branch: `fix-tinyxml2-patches` (new branch created for this fix within the submodule)
+- Commit: `c848e73d8d0c3ed39dfca2875b5a8deac6b06aa4` (full hash)
 - Status: **Committed locally but NOT YET PUSHED to GitHub**
 
 ## Required Actions
@@ -117,7 +117,7 @@ git apply /path/to/MAVSDK/third_party/tinyxml2/combined.patch
 - `third_party/tinyxml2/no-lfs64.patch` - Deleted
 
 ### In Main Repository:
-- `MAVSDK` - Submodule reference updated to `c848e73d`
+- `MAVSDK` - Submodule reference updated to `c848e73d8d0c3ed39dfca2875b5a8deac6b06aa4` (commit in fix-tinyxml2-patches branch)
 - `PUSH_MAVSDK_INSTRUCTIONS.md` - Instructions for pushing submodule changes
 - `SOLUTION_SUMMARY.md` - This file
 
