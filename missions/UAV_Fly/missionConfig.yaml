@@ -2,9 +2,9 @@
 
 # Global simulation parameters
 simulation:
-  useMoosSimPid: true # Use MOOS-IvP Vechicle simulator
+  useMoosSimPid: false # Use MOOS-IvP Vechicle simulator
   time_warp: 10
-  number_of_drones: 3
+  number_of_drones: 1
 
   ardupilot_ip: "0.0.0.0"
   ardupilot_protocol: "udp"
@@ -33,7 +33,7 @@ moos:
     PSHARE: 9200
 
 missionParams:
-  log_enabled: false # If true, the mission will be logged to a file
+  log_enabled: true # If true, the mission will be logged to a file
   mission_duration: 600 # s - The duration of the mission (20min)
 
   voronoi_search_enabled: false # If true, the Voronoi algorithm will be used to set the path for the drone, else TMSTC* will be used
