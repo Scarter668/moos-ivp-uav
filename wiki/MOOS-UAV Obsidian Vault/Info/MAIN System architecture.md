@@ -167,8 +167,9 @@ More on [[Gazebo]]
 - [[Mission Planner info]]
 ## MAVSDK 
 
-**No need to install as it comes as a submodule with moos-ivp-uav)**
-- ~/MAVSDK/
+**No need to install as it comes as a submodule with moos-ivp-uav**
+- The MAVSDK submodule is configured to use the `mavsdk-ardupilot` branch (set in `.gitmodules`)
+- ~/moos-ivp-uav/MAVSDK/
 - [[Install, Build & Run MAVSDK]]
 
 

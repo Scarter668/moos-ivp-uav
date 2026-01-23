@@ -9,15 +9,20 @@ Clone from fork of official MAVSDK
 **https:**
 
 	git clone https://github.com/Scarter668/MAVSDK.git;
+	cd MAVSDK;
+	git checkout mavsdk-ardupilot;
 	git submodule update --init --recursive
 
 **ssh**:
 
 	git clone git@github.com:Scarter668/MAVSDK.git;
+	cd MAVSDK;
+	git checkout mavsdk-ardupilot;
 	git submodule update --init --recursive
 
 
-**CHECKOUT** the version `v2.12.6-Ardupilot`
+**NOTE:** When cloning as a submodule (with moos-ivp-uav), the branch is automatically set via `.gitmodules` to `mavsdk-ardupilot`
+
 **NOTE:** MAVSDK only supports Mavlink 2 which is backwards compatible with Mavlink 1
 
 
@@ -32,7 +37,7 @@ Read instructions [[MAIN System architecture]]
 - *Configuration step*
 		- In folder `~/MAVSDK/`run:
 	
-	`cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Debug -Bbuild/default -H. -DBUILD_SHARED_LIBS=ON` 
+	`cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Debug -Bbuild/default -H. -DBUILD_SHARED_LIBS=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5` 
 	
 	The first flag `-DCMAKE_EXPORT_COMPILE_COMMANDS=1` is to generate a `compile_command.json` for IntelliSense Configuration in vscode 
 	- If not restricted by memory/compute consider including:
@@ -50,13 +55,16 @@ Read instructions [[MAIN System architecture]]
 Summary: 
 ```
 cd <path-to>/MAVSDK;
-cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Debug -Bbuild/default -H. -DBUILD_SHARED_LIBS=ON -DSUPERBUILD=ON;
+cmake -DCMAKE_EXPORT_COMPILE_COMMANDS=1 -DCMAKE_BUILD_TYPE=Debug -Bbuild/default -H. -DBUILD_SHARED_LIBS=ON -DSUPERBUILD=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5;
 sudo cmake --build build/default --target install;
 cd -
 ```
 
 Flag info can be found in the official guide
 
+
+**Build errors:**
+If experiencing build errors with cmake minimum version, make sure to set it to 3.5 where necessary. 
 
 
 ### Alias
