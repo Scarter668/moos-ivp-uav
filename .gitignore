@@ -109,3 +109,5 @@ missions/UAV_Fly/**.txt
 *mission_score_f*.txt
 
 mission_scores.csv
+
+.cache/
